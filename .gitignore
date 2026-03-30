@@ -15,7 +15,8 @@ postgres_data/
 #.env.example (Ejemplo a dejar configurado)
 
 #documentos
-docs/
+docs/*
+!docs/ARCHITECTURE_DECISIONS.md
 
 # macOS
 .DS_Store
