@@ -28,6 +28,11 @@ Como este es un pipeline de precios históricos, la base de datos se ha optimiza
 *   **Índice en `extracted_at`:** Vital para reportes cronológicos y filtros de tiempo (ej. "Precios de la última hora").
 *   **Índice Compuesto `(symbol, extracted_at DESC)`:** Optimizado para la consulta más frecuente en cripto: "Dame el historial de precio de BTC ordenado del más reciente al más antiguo". Esto reduce el costo de escaneo de la tabla de O(N) a O(log N).
 
+## 2.2 Estrategia de Contenerización Profesional 🐳
+Para asegurar que el pipeline sea reproducible y evite errores de importación comunes en entornos aislados:
+*   **Gestión de Módulos (`PYTHONPATH`):** Configuramos `/app` como la raíz del `PYTHONPATH` en Docker Compose, permitiendo que las importaciones absolutas (`from src.xxx`) funcionen sin problemas.
+*   **Ejecución de Módulos (`python -m`):** El contenedor lanza el proceso usando `python -m src.main`. Esta es la mejor práctica de Python para asegurar que el orquestador se ejecute dentro del contexto de un paquete, resolviendo dependencias de forma robusta.
+
 ## 3. Librerías Core (El Motor)
 *   **Requests:** Para consumo de APIs REST. Es el estándar de la industria por su simplicidad y potencia.
 *   **Pandas:** La herramienta definitiva para manipulación de datos en Python. Ideal para limpieza, tipado y transformaciones rápidas en memoria.
