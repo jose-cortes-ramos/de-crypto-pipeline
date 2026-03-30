@@ -27,9 +27,11 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app
     volumes:
-      - ./src:/app/src
-    command: ["python", "src/main.py"]
+      - .:/app
+    command: ["python", "-m", "src.main"]
 
 volumes:
   postgres_data:

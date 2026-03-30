@@ -1,62 +1,27 @@
-import os
-import requests
+import time
+import logging
+from datetime import datetime
 import pandas as pd
 from sqlalchemy import create_engine
-from datetime import datetime
-import logging
-import time
-from dotenv import load_dotenv
 
-# --- Configuración de Logging Professional ---
+from src.config import Config
+from src.extractors import CoinGeckoExtractor
+
+# --- Configuración de Logging Professional (Centralizada) ---
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=Config.LOG_LEVEL,
+    format=Config.LOG_FORMAT
 )
 logger = logging.getLogger(__name__)
 
-# Cargamos variables de entorno
-load_dotenv()
-
-
-def extract_market_data():
-    """
-    EXTRAER: Consume la API de CoinGecko con manejo de errores y reintentos.
-    """
-    url = "https://api.coingecko.com/api/v3/coins/markets"
-    params = {
-        "vs_currency": "usd",
-        "order": "market_cap_desc",
-        "per_page": 50,
-        "page": 1,
-        "sparkline": False
-    }
-    
-    try:
-        logger.info("Extracting: Connecting to CoinGecko API...")
-        response = requests.get(url, params=params, timeout=20)
-        
-        # Manejo de Rate Limiting (Error 429)
-        if response.status_code == 429:
-            logger.warning("Rate Limit reached. Retrying in 30 seconds...")
-            time.sleep(30)
-            return extract_market_data()
-            
-        response.raise_for_status()
-        data = response.json()
-        logger.info(f"Extraction successful: {len(data)} records retrieved.")
-        return data
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Extraction failed: Network or API error -> {e}")
-        raise
-
-def transform_data(raw_data):
+def transform_data(validated_data: list):
     """
     TRANSFORMAR: Limpieza, orden y selección de columnas con Pandas.
+    Recibe datos ya validados por el esquema de Pydantic.
     """
     try:
-        logger.info("Transforming: Processing raw JSON into structured DataFrame...")
-        df = pd.DataFrame(raw_data)
+        logger.info("Transforming: Processing validated data into structured DataFrame...")
+        df = pd.DataFrame(validated_data)
 
         # Selección de columnas críticas (Issue #3)
         cols = [
@@ -66,7 +31,7 @@ def transform_data(raw_data):
         ]
         df = df[cols]
 
-        # Data Quality: Limpieza de valores nulos en el precio
+        # Data Quality: Limpieza de valores nulos en el precio (Doble validación)
         df = df.dropna(subset=['current_price'])
 
         # Metadatos de Trazabilidad
@@ -79,13 +44,13 @@ def transform_data(raw_data):
         logger.error(f"Transformation failed: {e}")
         raise
 
-def load_to_warehouse(df):
+def load_to_warehouse(df: pd.DataFrame):
     """
     CARGAR: Ingesta en PostgreSQL usando SQLAlchemy.
     """
-    db_url = os.getenv("DATABASE_URL")
+    db_url = Config.DATABASE_URL
     if not db_url:
-        logger.error("DATABASE_URL missing in .env configuration.")
+        logger.error("DATABASE_URL missing in configuration.")
         return
 
     try:
@@ -100,18 +65,33 @@ def load_to_warehouse(df):
         logger.error(f"Load failed: Database connection or insertion error -> {e}")
         raise
 
-if __name__ == '__main__':
+def run_pipeline():
+    """
+    Orquestador principal del ETL Pipeline.
+    """
     start_time = time.time()
     try:
-        logger.info("--- STARTING CRYPTO ETL PIPELINE ---")
+        logger.info("--- STARTING CRYPTO ETL PIPELINE (MODULAR ARCHITECTURE) ---")
         
-        # Pipeline Flow
-        raw = extract_market_data()
-        clean = transform_data(raw)
-        load_to_warehouse(clean)
+        # 1. Validación de Configuración
+        Config.validate()
+
+        # 2. Extracción (Modular & Robusta)
+        extractor = CoinGeckoExtractor()
+        raw_validated_data = extractor.extract()
+        
+        # 3. Transformación (Pandas)
+        clean_df = transform_data(raw_validated_data)
+        
+        # 4. Carga (SQLAlchemy)
+        load_to_warehouse(clean_df)
         
         duration = round(time.time() - start_time, 2)
         logger.info(f"--- PIPELINE COMPLETED SUCCESSFULLY IN {duration}s ---")
 
-    except Exception:
-        logger.critical("PIPELINE CRASHED: Check logs for details.")
+    except Exception as e:
+        logger.critical(f"PIPELINE CRASHED: {e}")
+        raise
+
+if __name__ == '__main__':
+    run_pipeline()

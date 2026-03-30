@@ -6,35 +6,36 @@ Professional ETL pipeline designed to extract, transform, and load cryptocurrenc
 
 ## 🏗️ Architecture Overview
 
-The pipeline follows a modern data engineering approach:
-1.  **Extraction:** REST API consumption with robust retry logic (Exponential Backoff).
-2.  **Transformation:** Data cleaning and schema enforcement using Pandas and Pydantic.
-3.  **Loading:** Idempotent ingestion (Upsert) into PostgreSQL for historical analysis.
+The pipeline follows a modern data engineering approach with a **Modular OOP Architecture**:
+1.  **Extraction:** Decoupled extractor using `tenacity` for **Exponential Backoff** (handles 429/5xx errors gracefully).
+2.  **Validation:** **Schema-on-Read** enforcement using `Pydantic` to guarantee data integrity at the source.
+3.  **Transformation:** Data cleaning and metadata enrichment using `Pandas`.
+4.  **Loading:** Time-series optimized ingestion into `PostgreSQL` using `SQLAlchemy`.
+
+## ✨ Key Features (Senior Implementation)
+
+*   **Resilient Extraction:** Implements intelligent retry logic to handle API rate limits and network instability.
+*   **Strict Data Contracts:** Prevents data corruption by validating incoming JSON payloads against strictly typed schemas.
+*   **Centralized Configuration:** Zero hardcoding approach using a dedicated `Config` layer for environment-agnostic deployment.
+*   **Time-Series Optimized:** Database schema designed with composite indexes for high-performance historical data querying.
 
 ## 🛠️ Technology Stack
 
 *   **Language:** Python 3.11
-*   **Data Processing:** Pandas
-*   **Persistence:** PostgreSQL 15 (SQLAlchemy ORM)
+*   **Libraries:** Pandas, SQLAlchemy, Pydantic, Tenacity, Requests.
+*   **Database:** PostgreSQL 15 (Alpine)
 *   **Infrastructure:** Docker & Docker Compose
-*   **Observability:** Structured Logging
-*   **Quality:** Pytest, Pydantic, Black/Flake8 (CI/CD ready)
+*   **Quality:** Pytest, Black, Flake8.
 
-## 🚀 Quick Start (Development)
+## 🚀 Quick Start
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/de-crypto-pipeline.git
-    cd de-crypto-pipeline
-    ```
-
-2.  **Configure environment:**
+1.  **Configure environment:**
     ```bash
     cp .env.example .env
-    # Edit .env with your local credentials if needed
+    # Edit .env with your credentials
     ```
 
-3.  **Deploy with Docker:**
+2.  **Deploy with Docker:**
     ```bash
     docker-compose up --build
     ```

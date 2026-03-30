@@ -9,12 +9,24 @@ Un proyecto profesional debe estar organizado para ser escalable y mantenible:
 *   `tests/`: Suite de pruebas. Un pipeline sin tests no es apto para producción.
 *   `docs/`: Documentación técnica y seguimiento de issues (Transparencia).
 
+## 1.1 Refactorización: Evolución de Script a Arquitectura Modular (Issue 2) 🏗️
+Durante el desarrollo del **Issue 2 (Extracción)**, se tomó la decisión de evolucionar el código de un script lineal hacia una **arquitectura modular orientada a objetos (OOP)** por las siguientes razones de ingeniería senior:
+*   **Separación de Responsabilidades (SoC):** Desacoplamos la configuración (`config.py`), la validación de contratos de datos (`schemas.py`) y la lógica de consumo de API (`extractors.py`). Esto asegura que cada componente tenga una única responsabilidad.
+*   **Eliminación de Hardcoding:** Centralizamos parámetros como URLs, límites de tasa y credenciales en una clase de configuración, permitiendo cambiar el comportamiento del pipeline sin modificar el código fuente.
+*   **Robustez y Observabilidad:** La modularización permite integrar `tenacity` para reintentos automáticos y logging estructurado de manera más limpia, facilitando el monitoreo del rendimiento de la API.
+
 ## 2. Infraestructura: Docker & Docker Compose
 *   **Docker (`Dockerfile`):** Crea un entorno aislado y reproducible para el pipeline. Usamos `python:3.11-slim` para mantener la imagen ligera y segura.
 *   **Docker Compose:** Orquesta dos servicios independientes:
     *   `db` (PostgreSQL): El almacenamiento persistente.
     *   `pipeline` (Python): La lógica que procesa los datos.
 *   **Separación de Servicios:** Permite escalar el pipeline independientemente de la base de datos y asegura que cada componente tenga una única responsabilidad.
+
+## 2.1 Optimización de Base de Datos (Time-Series) 📈
+Como este es un pipeline de precios históricos, la base de datos se ha optimizado para consultas de **Series Temporales**:
+*   **Primary Key Compuesta `(id, extracted_at)`:** Garantiza la integridad referencial y evita duplicados en el mismo timestamp, permitiendo una partición lógica natural.
+*   **Índice en `extracted_at`:** Vital para reportes cronológicos y filtros de tiempo (ej. "Precios de la última hora").
+*   **Índice Compuesto `(symbol, extracted_at DESC)`:** Optimizado para la consulta más frecuente en cripto: "Dame el historial de precio de BTC ordenado del más reciente al más antiguo". Esto reduce el costo de escaneo de la tabla de O(N) a O(log N).
 
 ## 3. Librerías Core (El Motor)
 *   **Requests:** Para consumo de APIs REST. Es el estándar de la industria por su simplicidad y potencia.

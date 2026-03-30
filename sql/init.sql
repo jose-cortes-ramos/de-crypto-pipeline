@@ -13,4 +13,12 @@ CREATE TABLE IF NOT EXISTS crypto_prices (
     PRIMARY KEY (id, extracted_at)
 );
 
+-- Senior Detail: Índices optimizados para Series Temporales (Time-Series)
+-- 1. Índice para búsquedas rápidas por símbolo (BTC, ETH, etc.)
 CREATE INDEX IF NOT EXISTS idx_crypto_symbol ON crypto_prices(symbol);
+
+-- 2. Índice para filtros de tiempo (Series temporales: "precios de la última hora")
+CREATE INDEX IF NOT EXISTS idx_crypto_extracted_at ON crypto_prices(extracted_at);
+
+-- 3. Índice compuesto para consultas de tendencia por activo (Historial de BTC ordenado por tiempo)
+CREATE INDEX IF NOT EXISTS idx_crypto_symbol_time ON crypto_prices(symbol, extracted_at DESC);
