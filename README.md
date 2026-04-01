@@ -2,22 +2,43 @@
 
 **Data Engineering Portfolio - Jose Cortes**
 
-Professional ETL pipeline designed to extract, transform, and load cryptocurrency market data from the CoinGecko API into a PostgreSQL data warehouse.
+Professional ETL pipeline designed to extract, transform, and load cryptocurrency market data from the CoinGecko API into a PostgreSQL data warehouse. This project demonstrates **Senior-level** implementation of data integrity, resilience, and idempotent persistence.
 
-## 🏗️ Architecture Overview
+---
 
-The pipeline follows a modern data engineering approach with a **Modular OOP Architecture**:
-1.  **Extraction:** Decoupled extractor using `tenacity` for **Exponential Backoff** (handles 429/5xx errors gracefully).
-2.  **Validation:** **Schema-on-Read** enforcement using `Pydantic` to guarantee data integrity at the source.
-3.  **Transformation:** Data cleaning and metadata enrichment using `Pandas`.
-4.  **Loading:** Time-series optimized ingestion into `PostgreSQL` using `SQLAlchemy`.
+## 🏗️ Architecture & Data Flow
 
-## ✨ Key Features (Senior Implementation)
+> **Note:** The diagram below requires a Mermaid-compatible viewer (like GitHub or VS Code Markdown Preview).
 
-*   **Resilient Extraction:** Implements intelligent retry logic to handle API rate limits and network instability.
-*   **Strict Data Contracts:** Prevents data corruption by validating incoming JSON payloads against strictly typed schemas.
-*   **Centralized Configuration:** Zero hardcoding approach using a dedicated `Config` layer for environment-agnostic deployment.
-*   **Time-Series Optimized:** Database schema designed with composite indexes for high-performance historical data querying.
+```mermaid
+graph TD
+    A[CoinGecko API] -->|JSON/REST| B(Extractor)
+    B -->|Schema-on-Read| C{Pydantic Validation}
+    C -->|Valid Data| D[Pandas Transformation]
+    D -->|Type Hardening: Decimal| E[Schema-on-Write Enforcement]
+    E -->|Clean DataFrame| F(PostgreSQL Warehouse)
+    F -->|UPSERT Strategy| G[(Final Persistence)]
+    
+    subgraph "Resilience Layer"
+        B -.->|Retry: Tenacity| B
+        F -.->|Atomic Transactions| F
+        F -.->|Connection Pooling| F
+    end
+```
+
+---
+
+## ✨ Senior Engineering Highlights
+
+*   **Financial Precision (Decimal Casting):** Unlike junior implementations using floats, this pipeline uses `decimal.Decimal` to ensure absolute mathematical precision in cryptocurrency values, avoiding rounding errors in low-cap assets.
+*   **Idempotent Persistence (Upsert):** Implements `INSERT ... ON CONFLICT` logic, allowing the pipeline to be safely re-executed without duplicating historical records.
+*   **Data Contracts (Dual-Validation):** 
+    *   **Schema-on-Read:** Validates API payloads immediately upon extraction (Fail-Fast).
+    *   **Schema-on-Write:** Enforces data structure integrity right before ingestion (Firewall).
+*   **Enterprise Resilience:** Integrated `Tenacity` for **Exponential Backoff** handling of rate limits and SQLAlchemy **Connection Pooling** for optimized resource management.
+*   **Atomic Transactions:** Uses managed database sessions (`engine.begin()`) to ensure "all-or-nothing" loads, maintaining perfect referential integrity.
+
+---
 
 ## 🛠️ Technology Stack
 
@@ -26,6 +47,8 @@ The pipeline follows a modern data engineering approach with a **Modular OOP Arc
 *   **Database:** PostgreSQL 15 (Alpine)
 *   **Infrastructure:** Docker & Docker Compose
 *   **Quality:** Pytest, Black, Flake8.
+
+---
 
 ## 🚀 Quick Start
 

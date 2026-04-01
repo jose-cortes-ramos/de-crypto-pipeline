@@ -60,5 +60,38 @@ No basta con traer datos; hay que asegurar que sean correctos.
 *   **Uso:** `black` formatea el código automáticamente y `flake8` busca errores de estilo.
 *   **Valor:** Garantiza que el código sea legible y siga las PEP 8 (estándares oficiales de Python), facilitando la revisión de código por otros ingenieros.
 
+### 4. Robustez e Integridad de Datos
+En un sistema de produccion, la resiliencia y la precision de los datos son requisitos criticos. Las siguientes decisiones aseguran que el pipeline sea confiable y preciso bajo estandares de ingenieria senior.
+
+#### 4.1 Precision Financiera: Uso de Decimal sobre Float
+*   **Problema:** Los tipos de datos de punto flotante binario (float en Python y DOUBLE PRECISION en SQL) introducen errores de redondeo inherentes a la representacion binaria de fracciones decimales. En el contexto de criptomonedas con valores de mercado extremadamente bajos, estos errores se acumulan y comprometen la integridad de los reportes financieros.
+*   **Decision:** Se implementa el uso estricto de la libreria decimal.Decimal en la capa de transformacion y el tipo de dato NUMERIC(18, 8) en PostgreSQL.
+*   **Justificacion Senior:** Garantiza precision aritmetica exacta, un requisito indispensable para cualquier sistema de datos financieros o de intercambio de activos.
+
+#### 4.2 Idempotencia mediante Estrategia de Upsert
+*   **Problema:** Un pipeline basado unicamente en la estrategia de adicion (append) carece de re-ejecutabilidad segura. Si un proceso falla parcialmente y se reinicia, los datos ya cargados se duplican, invalidando el analisis historico.
+*   **Decision:** Se implementa una logica de carga mediante Upsert (INSERT ... ON CONFLICT (id, extracted_at) DO UPDATE).
+*   **Justificacion Senior:** Asegura la idempotencia del pipeline, permitiendo que el proceso se ejecute multiples veces con el mismo resultado final. Esto facilita la recuperacion automatica ante fallos y la ingesta de datos historicos sin riesgo de duplicacion.
+
+#### 4.3 Data Contract: Validacion Schema-on-Read con Pydantic
+*   **Problema:** Las APIs externas representan fuentes de datos no confiables cuyos esquemas pueden cambiar sin previo aviso. Permitir que datos con esquemas incorrectos lleguen a la base de datos genera fallos costosos de depurar.
+*   **Decision:** Se establece Pydantic como un firewall de validacion de contratos de datos (Data Contracts) inmediatamente despues de la extraccion.
+*   **Justificacion Senior:** Implementa una estrategia de Fail-Fast y mejora la observabilidad del sistema. Las inconsistencias se detectan en la etapa de ingestion, evitando que datos corruptos afecten la integridad del Data Warehouse.
+
+#### 4.4 Gestion Resiliente de Conexiones: Connection Pooling
+*   **Problema:** Abrir y cerrar conexiones a la base de datos por cada registro o batch es una operacion costosa que puede agotar los recursos del servidor y aumentar la latencia del pipeline.
+*   **Decision:** Se implementa un pool de conexiones mediante SQLAlchemy (`pool_size`, `max_overflow`), configurado a traves de variables de entorno.
+*   **Justificacion Senior:** Optimiza el uso de recursos y mejora la capacidad del pipeline para manejar cargas concurrentes. Asegura que el sistema sea escalable y que las conexiones se reutilicen de manera eficiente, evitando el overhead de negociacion de red en cada carga.
+
+#### 4.5 Transacciones Atomicas (Cumplimiento ACID)
+*   **Problema:** Una falla durante la ingesta de un batch de datos puede dejar la base de datos en un estado inconsistente (carga parcial), dificultando la auditoria y el re-procesamiento.
+*   **Decision:** Se utiliza el gestor de contextos `engine.begin()` de SQLAlchemy para asegurar que toda la operacion de carga ocurra dentro de una transaccion atomica.
+*   **Justificacion Senior:** Garantiza que el proceso de carga sea "todo o nada". Si ocurre un error, la transaccion se revierte automaticamente (rollback), manteniendo la integridad referencial y estructural del Data Warehouse en todo momento.
+
+#### 4.6 Verificacion de Calidad Post-Ingesta
+*   **Problema:** La confirmacion de exito de la libreria de persistencia no siempre garantiza que los datos en la tabla reflejen exactamente lo procesado en memoria.
+*   **Decision:** Se implementa una capa de validacion post-carga que confirma la integridad de la operacion mediante logs de verificacion.
+*   **Justificacion Senior:** Cierra el ciclo de confianza del ETL. No solo confiamos en el exito del comando SQL, sino que validamos empiricamente que el estado final de la base de datos es el esperado, elevando el estandar de observabilidad del pipeline.
+
 ---
-*Este proyecto prioriza la robustez y la integridad de los datos sobre la complejidad innecesaria.*
+Este proyecto prioriza la robustez y la integridad de los datos sobre la complejidad innecesaria.

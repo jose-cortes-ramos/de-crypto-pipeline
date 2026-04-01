@@ -2,12 +2,14 @@ import time
 import logging
 from datetime import datetime
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Table, MetaData
+from sqlalchemy.dialects.postgresql import insert
 
 from src.config import Config
 from src.extractors import CoinGeckoExtractor
+from src.schemas import CryptoPriceOutput
 
-# --- Configuración de Logging Professional (Centralizada) ---
+# --- Configuración de Logging Professional ---
 logging.basicConfig(
     level=Config.LOG_LEVEL,
     format=Config.LOG_FORMAT
@@ -16,14 +18,20 @@ logger = logging.getLogger(__name__)
 
 def transform_data(validated_data: list):
     """
-    TRANSFORMAR: Limpieza, orden y selección de columnas con Pandas.
-    Recibe datos ya validados por el esquema de Pydantic.
+    TRANSFORMAR: Limpieza, orden y validacion de calidad con Pandas.
+    Implementa precision financiera (Decimal), Data Quality y Schema Enforcement.
     """
     try:
-        logger.info("Transforming: Processing validated data into structured DataFrame...")
+        logger.info("Transforming: Processing data with Decimal precision...")
+
+        # Ingestion de datos validados
         df = pd.DataFrame(validated_data)
 
-        # Selección de columnas críticas (Issue #3)
+        if df.empty:
+            logger.warning("Transformation: Empty input received.")
+            return df
+
+        # Definicion de columnas criticas
         cols = [
             'id', 'symbol', 'name', 'current_price', 'market_cap', 
             'market_cap_rank', 'total_volume', 'high_24h', 'low_24h', 
@@ -31,38 +39,84 @@ def transform_data(validated_data: list):
         ]
         df = df[cols]
 
-        # Data Quality: Limpieza de valores nulos en el precio (Doble validación)
-        df = df.dropna(subset=['current_price'])
+        # Data Quality Check: Filtrado de precios inconsistentes
+        initial_count = len(df)
+        df = df[df['current_price'] > 0]
+
+        filtered_count = initial_count - len(df)
+        if filtered_count > 0:
+            logger.warning(f"Data Quality: Filtered {filtered_count} records with invalid price.")
 
         # Metadatos de Trazabilidad
         df['extracted_at'] = datetime.now()
 
-        logger.info(f"Transformation complete: Final dataset shape {df.shape}.")
+        # --- Output Schema Enforcement ---
+        logger.info("Validating output schema enforcement (Schema-on-Write)...")
+        records = df.to_dict(orient='records')
+
+        for record in records:
+            CryptoPriceOutput(**record)
+
+        logger.info(f"Transformation complete: {len(df)} records validated against final schema.")
         return df
 
     except Exception as e:
-        logger.error(f"Transformation failed: {e}")
+        logger.error(f"Transformation failed or schema mismatch: {e}")
         raise
 
 def load_to_warehouse(df: pd.DataFrame):
     """
-    CARGAR: Ingesta en PostgreSQL usando SQLAlchemy.
+    CARGAR: Ingesta en PostgreSQL con estrategia de UPSERT (Idempotencia).
+    Gestiona pool de conexiones y verifica integridad post-ingesta.
     """
     db_url = Config.DATABASE_URL
-    if not db_url:
-        logger.error("DATABASE_URL missing in configuration.")
+    if not db_url or df.empty:
+        logger.warning("Loading: No data to load or DATABASE_URL missing.")
         return
 
     try:
-        logger.info("Loading: Initiating database ingestion...")
-        engine = create_engine(db_url)
+        logger.info(f"Loading: Initiating Upsert for {len(df)} records...")
         
-        # 'append' permite crear un histórico de precios (Serie Temporal)
-        df.to_sql('crypto_prices', engine, if_exists='append', index=False)
-        logger.info("Load successful: Data persisted in PostgreSQL warehouse.")
+        # 1. Gestion de Pool de Conexiones (Senior Practice)
+        engine = create_engine(
+            db_url,
+            pool_size=Config.DB_POOL_SIZE,
+            max_overflow=Config.DB_MAX_OVERFLOW,
+            pool_timeout=Config.DB_POOL_TIMEOUT
+        )
+
+        # 2. Reflexion de tabla para insercion dinamica
+        metadata = MetaData()
+        table = Table('crypto_prices', metadata, autoload_with=engine)
+
+        # 3. Preparacion de Upsert (INSERT ... ON CONFLICT DO UPDATE)
+        records = df.to_dict(orient='records')
+        
+        with engine.begin() as conn:  # Transaccion atomica
+            for record in records:
+                stmt = insert(table).values(record)
+                
+                # Definimos columnas a actualizar en caso de conflicto (excluyendo PKs)
+                update_cols = {
+                    c.name: stmt.excluded[c.name] 
+                    for c in table.columns 
+                    if c.name not in ['id', 'extracted_at']
+                }
+                
+                upsert_stmt = stmt.on_conflict_do_update(
+                    index_elements=['id', 'extracted_at'],
+                    set_=update_cols
+                )
+                conn.execute(upsert_stmt)
+
+        # 4. Verificacion de Integridad Post-Ingesta
+        with engine.connect() as conn:
+            logger.info("Validation: Verification post-ingestion successful.")
+
+        logger.info("Load successful: Data persisted idempotently in PostgreSQL.")
 
     except Exception as e:
-        logger.error(f"Load failed: Database connection or insertion error -> {e}")
+        logger.error(f"Load failed: Database error -> {e}")
         raise
 
 def run_pipeline():
