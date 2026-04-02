@@ -18,7 +18,7 @@ graph TD
     D -->|Type Hardening: Decimal| E[Schema-on-Write Enforcement]
     E -->|Clean DataFrame| F(PostgreSQL Warehouse)
     F -->|UPSERT Strategy| G[(Final Persistence)]
-    
+
     subgraph "Resilience Layer"
         B -.->|Retry: Tenacity| B
         F -.->|Atomic Transactions| F
@@ -28,15 +28,24 @@ graph TD
 
 ---
 
+## 📚 Technical Documentation
+
+Explore the detailed engineering behind this project:
+*   [**Architecture Decisions (ADRs)**](docs/ARCHITECTURE_DECISIONS.md): Justification for every technical choice (PostgreSQL, Upsert, Pydantic).
+*   [**Data Pipeline Flow (Deep Dive)**](docs/DATA_PIPELINE_FLOW.md): Step-by-step breakdown of the data lifecycle.
+*   [**Operations & Deployment Guide**](docs/OPERATIONS_GUIDE.md): Manual for running, maintaining, and scaling the system in production.
+
+---
+
 ## ✨ Senior Engineering Highlights
 
-*   **Financial Precision (Decimal Casting):** Unlike junior implementations using floats, this pipeline uses `decimal.Decimal` to ensure absolute mathematical precision in cryptocurrency values, avoiding rounding errors in low-cap assets.
-*   **Idempotent Persistence (Upsert):** Implements `INSERT ... ON CONFLICT` logic, allowing the pipeline to be safely re-executed without duplicating historical records.
-*   **Data Contracts (Dual-Validation):** 
-    *   **Schema-on-Read:** Validates API payloads immediately upon extraction (Fail-Fast).
-    *   **Schema-on-Write:** Enforces data structure integrity right before ingestion (Firewall).
-*   **Enterprise Resilience:** Integrated `Tenacity` for **Exponential Backoff** handling of rate limits and SQLAlchemy **Connection Pooling** for optimized resource management.
-*   **Atomic Transactions:** Uses managed database sessions (`engine.begin()`) to ensure "all-or-nothing" loads, maintaining perfect referential integrity.
+*   **Financial Precision (Decimal Casting):** Uses `decimal.Decimal` to ensure absolute mathematical precision in cryptocurrency values.
+*   **Idempotent Persistence (Upsert):** Implements `INSERT ... ON CONFLICT` logic for safe re-executions.
+*   **Data Contracts:** Dual-validation (Schema-on-Read and Schema-on-Write) using Pydantic.
+*   **Production Readiness:**
+    *   **CI/CD Pipeline:** Automated testing and linting via GitHub Actions.
+    *   **Observability:** Machine-readable **JSON Logging** and proactive **Healthchecks**.
+    *   **Quality Firewall:** 100% compliance with `Black` (style) and `Flake8` (linting).
 
 ---
 
@@ -46,7 +55,7 @@ graph TD
 *   **Libraries:** Pandas, SQLAlchemy, Pydantic, Tenacity, Requests.
 *   **Database:** PostgreSQL 15 (Alpine)
 *   **Infrastructure:** Docker & Docker Compose
-*   **Quality:** Pytest, Black, Flake8.
+*   **DataOps:** GitHub Actions, Pre-commit, Pytest-cov.
 
 ---
 

@@ -25,8 +25,8 @@ Un proyecto profesional debe estar organizado para ser escalable y mantenible.
 *   **Impacto Senior:** Reducción del tiempo de build de **~320s a <1s**, optimizando el ciclo de vida del desarrollo y la eficiencia del CI/CD.
 
 ### 2.2 Gestión de Módulos (PYTHONPATH)
-*   **Decisión:** Configurar la raíz del proyecto en el `PYTHONPATH` y ejecutar mediante `python -m src.main`.
-*   **Justificación:** Evita errores de importación relativos y asegura que el orquestador se ejecute siempre dentro del contexto del paquete, un estándar en aplicaciones de producción.
+*   **Decisión:** Configurar la raíz del proyecto en el `PYTHONPATH` mediante `pyproject.toml` y ejecutar mediante `python -m src.main`.
+*   **Justificación:** Evita errores de importación relativos y asegura que los entornos de automatización (GitHub Actions) resuelvan correctamente las dependencias del proyecto.
 
 ---
 
@@ -85,6 +85,10 @@ Un proyecto profesional debe estar organizado para ser escalable y mantenible.
 ### 6.3 Automatización de Calidad (CI/CD)
 *   **GitHub Actions:** Ejecución de tests contra un PostgreSQL real en el CI. Monitoreo de Code Coverage.
 *   **Pre-commit Hooks:** Blindaje local que impide subir código que no cumpla con los estándares de Black y Flake8.
+
+### 6.4 Fuente Única de Configuración (pyproject.toml)
+*   **Decisión:** Centralizar la configuración de `black`, `pytest` y otras herramientas de desarrollo en un solo archivo.
+*   **Justificación:** Elimina la dispersión de archivos de configuración y garantiza que tanto los desarrolladores como los sistemas de CI utilicen los mismos parámetros de ejecución.
 
 ---
 Este proyecto prioriza la **confiabilidad** sobre la complejidad, estableciendo una base sólida para un entorno de datos productivo.

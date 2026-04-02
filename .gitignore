@@ -17,6 +17,8 @@ postgres_data/
 #documentos
 docs/*
 !docs/ARCHITECTURE_DECISIONS.md
+!docs/DATA_PIPELINE_FLOW.md
+!docs/OPERATIONS_GUIDE.md
 
 # macOS
 .DS_Store
