@@ -14,11 +14,11 @@ postgres_data/
 .env
 #.env.example (Ejemplo a dejar configurado)
 
-#documentos
+# Documentos Públicos (Portfolio en Inglés)
 docs/*
-!docs/ARCHITECTURE_DECISIONS.md
-!docs/DATA_PIPELINE_FLOW.md
-!docs/OPERATIONS_GUIDE.md
+!docs/ARCHITECTURE_DECISIONS_EN.md
+!docs/DATA_PIPELINE_FLOW_EN.md
+!docs/OPERATIONS_GUIDE_EN.md
 
 # macOS
 .DS_Store

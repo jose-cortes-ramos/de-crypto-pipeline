@@ -31,9 +31,9 @@ graph TD
 ## 📚 Technical Documentation
 
 Explore the detailed engineering behind this project:
-*   [**Architecture Decisions (ADRs)**](docs/ARCHITECTURE_DECISIONS.md): Justification for every technical choice (PostgreSQL, Upsert, Pydantic).
-*   [**Data Pipeline Flow (Deep Dive)**](docs/DATA_PIPELINE_FLOW.md): Step-by-step breakdown of the data lifecycle.
-*   [**Operations & Deployment Guide**](docs/OPERATIONS_GUIDE.md): Manual for running, maintaining, and scaling the system in production.
+*   [**Architecture Decisions (ADRs)**](docs/ARCHITECTURE_DECISIONS_EN.md): Justification for every technical choice (PostgreSQL, Upsert, Pydantic).
+*   [**Data Pipeline Flow (Deep Dive)**](docs/DATA_PIPELINE_FLOW_EN.md): Step-by-step breakdown of the data lifecycle.
+*   [**Operations & Deployment Guide**](docs/OPERATIONS_GUIDE_EN.md): Manual for running, maintaining, and scaling the system in production.
 
 ---
 
