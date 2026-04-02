@@ -6,11 +6,6 @@ from decimal import Decimal
 from src.main import transform_data
 
 
-def test_intentional_failure_for_ci_validation():
-    """Test designed to fail and validate that CI detects errors."""
-    assert 1 == 2, "Este test DEBE fallar para validar el CI"
-
-
 def test_transform_data_decimal_precision():
     """Test to ensure transformation maintains Decimal precision."""
     # Datos de entrada simulados (Ya validados por Pydantic)
