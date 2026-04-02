@@ -1,0 +1,33 @@
+# Ignore virtual environments
+venv/
+.venv/
+env/
+
+# Ignore Python cache
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Ignore Git
+.git/
+.github/
+
+# Ignore local DB data
+postgres_data/
+.docker-data/
+
+# Ignore OS files
+.DS_Store
+
+# Ignore documentation (optional, but keep context light)
+docs/
+README.md
+PIPELINE_FLOW_EXPLAINED.md
+DATA_PIPELINE_FLOW.md
+
+# Ignore env files
+.env
+.env.example
