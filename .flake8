@@ -1,0 +1,18 @@
+[flake8]
+# Ignorar carpetas de sistema y entorno virtual
+exclude =
+    .git,
+    __pycache__,
+    venv,
+    .venv,
+    .pytest_cache,
+    dist,
+    build
+
+# Reglas de estilo Senior
+max-line-length = 79
+extend-ignore = E203, D203
+max-complexity = 10
+count = True
+show-source = True
+statistics = True

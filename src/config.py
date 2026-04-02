@@ -1,18 +1,25 @@
+"""Configuration module for the Crypto ETL pipeline."""
+
 import os
 from dotenv import load_dotenv
 
 # Cargar variables de entorno desde .env
 load_dotenv()
 
+
 class Config:
     """
     Configuración centralizada para el pipeline de datos.
+
     Elimina el hardcoding y permite gestionar entornos fácilmente.
     """
+
     # CoinGecko API Config
-    COINGECKO_BASE_URL = os.getenv("COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3")
+    COINGECKO_BASE_URL = os.getenv(
+        "COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3"
+    )
     COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY")
-    
+
     # Parámetros por defecto para la extracción
     DEFAULT_CURRENCY = "usd"
     PER_PAGE = 50
@@ -32,10 +39,12 @@ class Config:
 
     @classmethod
     def validate(cls):
-        """Valida que las variables críticas existan para evitar fallos en runtime."""
+        """Valida que existan variables críticas para evitar fallos."""
         if not cls.DATABASE_URL:
-            # En un entorno senior, fallamos rápido si la configuración está mal
+            # Fallamos rápido si la configuración está mal
             raise ValueError("CRITICAL CONFIG ERROR: DATABASE_URL is not set.")
-        
+
         if not cls.COINGECKO_BASE_URL:
-            raise ValueError("CRITICAL CONFIG ERROR: COINGECKO_BASE_URL is missing.")
+            raise ValueError(
+                "CRITICAL CONFIG ERROR: COINGECKO_BASE_URL is missing."
+            )
