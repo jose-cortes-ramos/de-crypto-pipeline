@@ -11,3 +11,9 @@ exclude = '''
   | __pycache__
 )/
 '''
+
+[tool.pytest.ini_options]
+# Configuración profesional de Pytest
+pythonpath = ["."]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
