@@ -1,5 +1,6 @@
 import time
 import logging
+from pythonjsonlogger import jsonlogger
 from datetime import datetime
 import pandas as pd
 from sqlalchemy import create_engine, Table, MetaData
@@ -8,11 +9,18 @@ from sqlalchemy.dialects.postgresql import insert
 from src.config import Config
 from src.extractors import CoinGeckoExtractor
 from src.schemas import CryptoPriceOutput
+from src.utils import check_api_health, check_db_health
 
-# --- Configuración de Logging Professional ---
+# --- Configuracion de Logging Estructurado (JSON) - Senior Practice ---
+log_handler = logging.StreamHandler()
+# Usamos un f-string para crear el formato que espera la libreria
+json_format = " ".join([f"%({field})s" for field in Config.LOG_JSON_FIELDS.split(",")])
+formatter = jsonlogger.JsonFormatter(json_format)
+log_handler.setFormatter(formatter)
+
 logging.basicConfig(
     level=Config.LOG_LEVEL,
-    format=Config.LOG_FORMAT
+    handlers=[log_handler]
 )
 logger = logging.getLogger(__name__)
 
@@ -109,11 +117,25 @@ def load_to_warehouse(df: pd.DataFrame):
                 )
                 conn.execute(upsert_stmt)
 
-        # 4. Verificacion de Integridad Post-Ingesta
+        # 4. Auditoria de Carga (Data Audit - Issue #4 Phase 2)
         with engine.connect() as conn:
-            logger.info("Validation: Verification post-ingestion successful.")
+            from sqlalchemy import select, func
+            
+            # Verificamos registros cargados en esta ejecucion (usando el timestamp mas reciente del DF)
+            latest_extraction = df['extracted_at'].max()
+            audit_query = select(func.count()).select_from(table).where(table.c.extracted_at == latest_extraction)
+            
+            db_count = conn.execute(audit_query).scalar()
+            df_count = len(df)
+            
+            if db_count == df_count:
+                logger.info(f"Audit Successful: {db_count} records verified in Warehouse (Match 100%).")
+            else:
+                logger.error(f"Audit Integrity Failure: DF count ({df_count}) != DB count ({db_count}).")
+                # En un entorno senior, fallamos si hay discrepancia de datos
+                raise ValueError("Data Integrity Breach: Load count mismatch.")
 
-        logger.info("Load successful: Data persisted idempotently in PostgreSQL.")
+        logger.info("Load successful: Data persisted idempotently and audited.")
 
     except Exception as e:
         logger.error(f"Load failed: Database error -> {e}")
@@ -130,7 +152,17 @@ def run_pipeline():
         # 1. Validación de Configuración
         Config.validate()
 
-        # 2. Extracción (Modular & Robusta)
+        # 2. Infrastructure Healthchecks (Senior Resilience - Issue #5)
+        # Verificamos conectividad API
+        if not check_api_health():
+            raise RuntimeError("Pipeline Aborted: API is unreachable.")
+        
+        # Verificamos conectividad DB
+        engine = create_engine(Config.DATABASE_URL)
+        if not check_db_health(engine):
+            raise RuntimeError("Pipeline Aborted: Database is unreachable.")
+
+        # 3. Extracción (Modular & Robusta)
         extractor = CoinGeckoExtractor()
         raw_validated_data = extractor.extract()
         

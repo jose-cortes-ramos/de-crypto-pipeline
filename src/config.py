@@ -27,6 +27,8 @@ class Config:
     # ETL Monitoring & Logging
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    # Formato JSON para observabilidad avanzada (Senior Feature)
+    LOG_JSON_FIELDS = "levelname,name,message,asctime,filename,lineno"
 
     @classmethod
     def validate(cls):

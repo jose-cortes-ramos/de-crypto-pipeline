@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional
 from decimal import Decimal
 from datetime import datetime
@@ -8,6 +8,8 @@ class CryptoMarketData(BaseModel):
     Schema-on-Read: Valida la integridad de los datos recibidos de CoinGecko.
     Asegura precision financiera mediante el uso de Decimal (Issue #3).
     """
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     symbol: str
     name: str
@@ -26,9 +28,6 @@ class CryptoMarketData(BaseModel):
         if v is None:
             return None
         return Decimal(str(v))
-
-    class Config:
-        from_attributes = True
 
 class CryptoPriceOutput(CryptoMarketData):
     """
