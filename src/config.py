@@ -31,6 +31,10 @@ class Config:
     DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "10"))
     DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))
 
+    # GCP Config (Issue #6)
+    GCP_BUCKET_NAME = os.getenv("GCP_BUCKET_NAME")
+    GCP_CREDENTIALS_PATH = os.getenv("GCP_CREDENTIALS_PATH")
+
     # ETL Monitoring & Logging
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

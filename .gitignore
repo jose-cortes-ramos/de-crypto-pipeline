@@ -22,3 +22,6 @@ docs/*
 
 # macOS
 .DS_Store
+
+# --- GCP Credentials ---
+*.json
