@@ -91,4 +91,17 @@ A professional project must be organized to be scalable and maintainable.
 *   **Justification:** Eliminates configuration file dispersion and ensures that both developers and CI systems use the same execution parameters.
 
 ---
+
+## 7. Hybrid Persistence (Data Lake & Warehouse)
+
+### 7.1 Dual-Sink Architecture
+*   **Decision:** Implement a dual-sink strategy for data ingestion.
+    1.  **GCS (Data Lake):** Persistence of raw data (Raw JSON) before any transformation.
+    2.  **PostgreSQL (Data Warehouse):** Persistence of transformed, validated, and typed data.
+*   **Justification:**
+    *   **Data Lake:** Storing raw JSON in GCS allows for full historical reprocessing if business rules change in the future (the original source is always available).
+    *   **Data Warehouse:** Storing cleaned data in PostgreSQL/BigQuery enables high-performance SQL queries for BI and real-time analytics.
+*   **Resilience:** The use of a decoupled `GCSUploader` ensures that even if the load process to the Warehouse fails, the raw data is already secured in the cloud.
+
+---
 This project prioritizes **reliability** over complexity, establishing a solid foundation for a productive data environment.

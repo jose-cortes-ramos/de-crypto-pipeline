@@ -31,6 +31,7 @@ services:
       - PYTHONPATH=/app
     volumes:
       - .:/app
+      - ./credentials:/app/credentials:ro
     command: ["python", "-m", "src.main"]
 
 volumes:

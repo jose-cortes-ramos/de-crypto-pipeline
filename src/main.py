@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from src.config import Config
 from src.extractors import CoinGeckoExtractor
 from src.schemas import CryptoPriceOutput
-from src.utils import check_api_health, check_db_health
+from src.utils import check_api_health, check_db_health, GCSUploader
 
 # --- Configuracion de Logging Estructurado (JSON) - Senior Practice ---
 log_handler = logging.StreamHandler()
@@ -180,10 +180,20 @@ def run_pipeline():
         extractor = CoinGeckoExtractor()
         raw_validated_data = extractor.extract()
 
-        # 3. Transformación (Pandas)
+        # 4. Data Lake Ingestion (New Sink: GCP)
+        if Config.GCP_BUCKET_NAME and Config.GCP_CREDENTIALS_PATH:
+            uploader = GCSUploader(
+                Config.GCP_BUCKET_NAME, Config.GCP_CREDENTIALS_PATH
+            )
+            blob_name = (
+                f"crypto_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            )
+            uploader.upload_data(raw_validated_data, blob_name)
+
+        # 5. Transformación (Pandas)
         clean_df = transform_data(raw_validated_data)
 
-        # 4. Carga (SQLAlchemy)
+        # 6. Carga (SQLAlchemy)
         load_to_warehouse(clean_df)
 
         duration = round(time.time() - start_time, 2)
