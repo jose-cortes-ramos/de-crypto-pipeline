@@ -10,7 +10,7 @@ from tenacity import (
     retry_if_exception_type,
 )
 from src.config import Config
-from src.schemas import CryptoMarketData
+from src.schemas import CryptoMarketData, CryptoHistoricalResponse
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +28,8 @@ class CoinGeckoExtractor:
         self.api_key = Config.COINGECKO_API_KEY
 
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=2, min=10, max=60),
         retry=retry_if_exception_type(requests.exceptions.RequestException),
     )
     def _make_request(self, endpoint: str, params: dict = None) -> dict:
@@ -84,4 +84,28 @@ class CoinGeckoExtractor:
 
         except Exception as e:
             logger.error(f"Extraction critical failure: {e}")
+            raise
+
+    def extract_historical(self, coin_id: str, days: int = 365) -> dict:
+        """
+        Extrae y valida datos históricos de una moneda específica.
+
+        Nivel: Senior Analytics Discovery.
+        """
+        try:
+            logger.info(f"Starting historical extraction for {coin_id}...")
+            params = {
+                "vs_currency": Config.DEFAULT_CURRENCY,
+                "days": days,
+                "interval": "daily",
+            }
+            endpoint = f"coins/{coin_id}/market_chart"
+            raw_data = self._make_request(endpoint, params=params)
+
+            # Validación del contrato de datos históricos
+            validated_data = CryptoHistoricalResponse(**raw_data)
+            return validated_data.model_dump()
+
+        except Exception as e:
+            logger.error(f"Historical extraction failed for {coin_id}: {e}")
             raise

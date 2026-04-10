@@ -1,7 +1,7 @@
 """Data validation schemas for the Crypto ETL pipeline."""
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Optional, List
 from decimal import Decimal
 from datetime import datetime
 
@@ -48,3 +48,31 @@ class CryptoPriceOutput(CryptoMarketData):
     """
 
     extracted_at: datetime
+
+
+class CryptoHistoricalResponse(BaseModel):
+    """
+    Schema-on-Read: Valida la respuesta anidada de datos históricos.
+
+    Estructura: {"prices": [[ts, val], ...], "market_caps": [...], ...}
+    """
+
+    prices: List[List[float]]
+    market_caps: List[List[float]]
+    total_volumes: List[List[float]]
+
+
+class CryptoHistoricalRow(BaseModel):
+    """Schema-on-Write: Valida registros históricos antes de persistir."""
+
+    coin_id: str
+    timestamp: datetime
+    price: Decimal
+    market_cap: Decimal
+    total_volume: Decimal
+
+    @field_validator("price", "market_cap", "total_volume", mode="before")
+    @classmethod
+    def cast_to_decimal(cls, v):
+        """Asegura precision decimal en registros historicos."""
+        return Decimal(str(v))

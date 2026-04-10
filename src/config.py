@@ -35,6 +35,16 @@ class Config:
     GCP_BUCKET_NAME = os.getenv("GCP_BUCKET_NAME")
     GCP_CREDENTIALS_PATH = os.getenv("GCP_CREDENTIALS_PATH")
 
+    # Analytics Config (Issue #7)
+    ANALYTICS_ASSETS = [
+        "bitcoin",
+        "ethereum",
+        "solana",
+        "binancecoin",
+        "ripple",
+    ]
+    HISTORICAL_DAYS = 365
+
     # ETL Monitoring & Logging
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

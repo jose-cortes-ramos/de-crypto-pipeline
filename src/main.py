@@ -10,10 +10,10 @@ from sqlalchemy.dialects.postgresql import insert
 
 from src.config import Config
 from src.extractors import CoinGeckoExtractor
-from src.schemas import CryptoPriceOutput
-from src.utils import check_api_health, check_db_health, GCSUploader
+from src.schemas import CryptoPriceOutput, CryptoHistoricalRow
+from src.utils import GCSUploader
 
-# --- Configuracion de Logging Estructurado (JSON) - Senior Practice ---
+# --- Configuracion de Logging Estructurado (JSON) ---
 log_handler = logging.StreamHandler()
 json_format = " ".join(
     [f"%({field})s" for field in Config.LOG_JSON_FIELDS.split(",")]
@@ -25,23 +25,14 @@ logging.basicConfig(level=Config.LOG_LEVEL, handlers=[log_handler])
 logger = logging.getLogger(__name__)
 
 
-def transform_data(validated_data: list):
-    """
-    TRANSFORMAR: Limpieza y validacion de calidad con Pandas.
-
-    Implementa precision financiera (Decimal) y Schema Enforcement.
-    """
+def transform_real_time_data(validated_data: list) -> pd.DataFrame:
+    """TRANSFORMAR: Limpieza y validacion de calidad para snapshots."""
     try:
-        logger.info("Transforming: Processing data with Decimal precision...")
-
-        # Ingestion de datos validados
+        logger.info("Transforming: Processing real-time market data...")
         df = pd.DataFrame(validated_data)
-
         if df.empty:
-            logger.warning("Transformation: Empty input received.")
             return df
 
-        # Definicion de columnas criticas
         cols = [
             "id",
             "symbol",
@@ -55,149 +46,127 @@ def transform_data(validated_data: list):
             "price_change_percentage_24h",
         ]
         df = df[cols]
-
-        # Data Quality Check: Filtrado de precios inconsistentes
-        initial_count = len(df)
         df = df[df["current_price"] > 0]
-
-        filtered_count = initial_count - len(df)
-        if filtered_count > 0:
-            logger.warning(
-                f"Data Quality: Filtered {filtered_count} invalid records."
-            )
-
-        # Metadatos de Trazabilidad
         df["extracted_at"] = datetime.now()
 
-        # --- Output Schema Enforcement ---
-        logger.info(
-            "Validating output schema enforcement (Schema-on-Write)..."
-        )
-        records = df.to_dict(orient="records")
-
-        for record in records:
+        for record in df.to_dict(orient="records"):
             CryptoPriceOutput(**record)
 
-        logger.info(f"Transformation complete: {len(df)} records validated.")
         return df
-
     except Exception as e:
-        logger.error(f"Transformation failed or schema mismatch: {e}")
+        logger.error(f"Real-time transformation failed: {e}")
         raise
 
 
-def load_to_warehouse(df: pd.DataFrame):
-    """
-    CARGAR: Ingesta en PostgreSQL con UPSERT (Idempotencia).
+def transform_historical_data(
+    raw_historical: dict, coin_id: str
+) -> pd.DataFrame:
+    """TRANSFORMAR: Aplanado de datos historicos."""
+    try:
+        logger.info(f"Transforming: Flattening history for {coin_id}...")
+        df_p = pd.DataFrame(raw_historical["prices"], columns=["ts", "price"])
+        df_c = pd.DataFrame(
+            raw_historical["market_caps"], columns=["ts", "market_cap"]
+        )
+        df_v = pd.DataFrame(
+            raw_historical["total_volumes"], columns=["ts", "total_volume"]
+        )
 
-    Gestiona pool de conexiones y verifica integridad post-ingesta.
-    """
-    db_url = Config.DATABASE_URL
-    if not db_url or df.empty:
-        logger.warning("Loading: No data to load or DATABASE_URL missing.")
+        df = df_p.merge(df_c, on="ts").merge(df_v, on="ts")
+        df["coin_id"] = coin_id
+        df["timestamp"] = pd.to_datetime(df["ts"], unit="ms")
+        df = df.drop(columns=["ts"])
+
+        for record in df.to_dict(orient="records"):
+            CryptoHistoricalRow(**record)
+
+        return df
+    except Exception as e:
+        logger.error(f"Historical transformation failed for {coin_id}: {e}")
+        raise
+
+
+def load_to_warehouse(df: pd.DataFrame, table_name: str, pk_cols: list):
+    """Carga generica con estrategia de UPSERT."""
+    if not Config.DATABASE_URL or df.empty:
         return
 
     try:
-        logger.info(f"Loading: Initiating Upsert for {len(df)} records...")
-
-        # 1. Gestion de Pool de Conexiones
-        engine = create_engine(
-            db_url,
-            pool_size=Config.DB_POOL_SIZE,
-            max_overflow=Config.DB_MAX_OVERFLOW,
-            pool_timeout=Config.DB_POOL_TIMEOUT,
+        logger.info(
+            f"Loading: UPSERT into {table_name} ({len(df)} records)..."
         )
-
-        # 2. Reflexion de tabla para insercion dinamica
+        engine = create_engine(Config.DATABASE_URL)
         metadata = MetaData()
-        table = Table("crypto_prices", metadata, autoload_with=engine)
+        table = Table(table_name, metadata, autoload_with=engine)
 
-        # 3. Preparacion de Upsert (INSERT ... ON CONFLICT DO UPDATE)
-        records = df.to_dict(orient="records")
-
-        with engine.begin() as conn:  # Transaccion atomica
-            for record in records:
+        with engine.begin() as conn:
+            for record in df.to_dict(orient="records"):
                 stmt = insert(table).values(record)
-
-                # Definimos columnas a actualizar (excluyendo PKs)
                 update_cols = {
                     c.name: stmt.excluded[c.name]
                     for c in table.columns
-                    if c.name not in ["id", "extracted_at"]
+                    if c.name not in pk_cols
                 }
-
-                upsert_stmt = stmt.on_conflict_do_update(
-                    index_elements=["id", "extracted_at"], set_=update_cols
+                conn.execute(
+                    stmt.on_conflict_do_update(
+                        index_elements=pk_cols, set_=update_cols
+                    )
                 )
-                conn.execute(upsert_stmt)
-
-        # 4. Auditoria de Carga (Data Audit - Issue #4 Phase 2)
-        with engine.connect() as conn:
-            from sqlalchemy import select, func
-
-            # Verificamos registros cargados en esta ejecucion
-            latest_extraction = df["extracted_at"].max()
-            audit_query = (
-                select(func.count())
-                .select_from(table)
-                .where(table.c.extracted_at == latest_extraction)
-            )
-
-            db_count = conn.execute(audit_query).scalar()
-            df_count = len(df)
-
-            if db_count == df_count:
-                logger.info(f"Audit Successful: {db_count} records verified.")
-            else:
-                logger.error(f"Audit Failure: DF {df_count} != DB {db_count}.")
-                raise ValueError("Data Integrity Breach: Load count mismatch.")
-
-        logger.info("Load successful: Data persisted idempotently.")
-
+        logger.info(f"Load successful for {table_name}.")
     except Exception as e:
-        logger.error(f"Load failed: Database error -> {e}")
+        logger.error(f"Load failed for {table_name}: {e}")
         raise
 
 
 def run_pipeline():
-    """Orquestador principal del ETL Pipeline."""
+    """Orquestador Hibrido: Real-Time + Historical."""
     start_time = time.time()
     try:
-        logger.info("--- STARTING CRYPTO ETL PIPELINE ---")
-
-        # 1. Validación de Configuración
+        logger.info("--- STARTING HYBRID CRYPTO PIPELINE ---")
         Config.validate()
-
-        # 2. Infrastructure Healthchecks
-        if not check_api_health():
-            raise RuntimeError("Pipeline Aborted: API is unreachable.")
-
-        engine = create_engine(Config.DATABASE_URL)
-        if not check_db_health(engine):
-            raise RuntimeError("Pipeline Aborted: Database is unreachable.")
-
-        # 3. Extracción (Modular & Robusta)
         extractor = CoinGeckoExtractor()
-        raw_validated_data = extractor.extract()
 
-        # 4. Data Lake Ingestion (New Sink: GCP)
+        # 1. FASE TIEMPO REAL (50 Monedas)
+        logger.info("PHASE 1: Real-Time Snapshots")
+        raw_rt = extractor.extract()
+
+        # Cloud Persistence (Data Lake - Snapshot)
         if Config.GCP_BUCKET_NAME and Config.GCP_CREDENTIALS_PATH:
             uploader = GCSUploader(
                 Config.GCP_BUCKET_NAME, Config.GCP_CREDENTIALS_PATH
             )
-            blob_name = (
-                f"crypto_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            ts_now = datetime.now().strftime("%Y%m%d_%H%M%S")
+            blob_name = f"snapshots/crypto_market_{ts_now}.json"
+            uploader.upload_data(raw_rt, blob_name)
+
+        clean_rt = transform_real_time_data(raw_rt)
+        load_to_warehouse(clean_rt, "crypto_prices", ["id", "extracted_at"])
+
+        # 2. FASE HISTORICA (Top 5 Monedas)
+        logger.info("PHASE 2: Historical Backfill")
+        for asset in Config.ANALYTICS_ASSETS:
+            raw_h = extractor.extract_historical(
+                asset, days=Config.HISTORICAL_DAYS
             )
-            uploader.upload_data(raw_validated_data, blob_name)
 
-        # 5. Transformación (Pandas)
-        clean_df = transform_data(raw_validated_data)
+            if Config.GCP_BUCKET_NAME and Config.GCP_CREDENTIALS_PATH:
+                uploader = GCSUploader(
+                    Config.GCP_BUCKET_NAME, Config.GCP_CREDENTIALS_PATH
+                )
+                ts_now = datetime.now().strftime("%Y%m%d")
+                blob_name = f"historical/{asset}_{ts_now}.json"
+                uploader.upload_data(raw_h, blob_name)
 
-        # 6. Carga (SQLAlchemy)
-        load_to_warehouse(clean_df)
+            clean_h = transform_historical_data(raw_h, asset)
+            load_to_warehouse(
+                clean_h, "crypto_historical_daily", ["coin_id", "timestamp"]
+            )
+
+            logger.info(f"Cooling down 30s after {asset}...")
+            time.sleep(30)
 
         duration = round(time.time() - start_time, 2)
-        logger.info(f"--- PIPELINE COMPLETED SUCCESSFULLY IN {duration}s ---")
+        logger.info(f"--- PIPELINE COMPLETED IN {duration}s ---")
 
     except Exception as e:
         logger.critical(f"PIPELINE CRASHED: {e}")
