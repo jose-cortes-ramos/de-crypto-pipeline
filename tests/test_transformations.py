@@ -3,10 +3,10 @@
 import pytest
 import pandas as pd
 from decimal import Decimal
-from src.main import transform_data
+from src.main import transform_real_time_data
 
 
-def test_transform_data_decimal_precision():
+def test_transform_real_time_data_decimal_precision():
     """Test to ensure transformation maintains Decimal precision."""
     # Datos de entrada simulados (Ya validados por Pydantic)
     validated_data = [
@@ -24,7 +24,7 @@ def test_transform_data_decimal_precision():
         }
     ]
 
-    df = transform_data(validated_data)
+    df = transform_real_time_data(validated_data)
 
     # Verificacion de tipo y precision
     assert isinstance(df["current_price"][0], Decimal)
@@ -32,7 +32,7 @@ def test_transform_data_decimal_precision():
     assert "extracted_at" in df.columns
 
 
-def test_transform_data_quality_filter():
+def test_transform_real_time_data_quality_filter():
     """Test to ensure quality filters remove invalid prices."""
     validated_data = [
         # Registro Valido
@@ -63,26 +63,22 @@ def test_transform_data_quality_filter():
         },
     ]
 
-    df = transform_data(validated_data)
+    df = transform_real_time_data(validated_data)
 
     # Deberia haber filtrado el registro con precio 0
     assert len(df) == 1
     assert df["id"][0] == "bitcoin"
 
 
-def test_transform_data_empty_input():
+def test_transform_real_time_data_empty_input():
     """Test to ensure pipeline handles empty inputs without crashing."""
-    df = transform_data([])
+    df = transform_real_time_data([])
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 0
 
 
-def test_transform_data_optional_fields_none():
-    """
-    Test to ensure optional fields (None) are handled correctly.
-
-    Level: Senior Resilience.
-    """
+def test_transform_real_time_data_optional_fields_none():
+    """Test to ensure optional fields (None) are handled correctly."""
     validated_data = [
         {
             "id": "new-coin",
@@ -98,19 +94,15 @@ def test_transform_data_optional_fields_none():
         }
     ]
 
-    df = transform_data(validated_data)
+    df = transform_real_time_data(validated_data)
 
     assert len(df) == 1
     assert pd.isna(df["high_24h"][0])
     assert df["id"][0] == "new-coin"
 
 
-def test_transform_data_extreme_precision():
-    """
-    Test to ensure precision in micro-cap coins.
-
-    Level: Senior Precision.
-    """
+def test_transform_real_time_data_extreme_precision():
+    """Test to ensure precision in micro-cap coins."""
     micro_price = Decimal("0.00000001234567")
     validated_data = [
         {
@@ -127,20 +119,16 @@ def test_transform_data_extreme_precision():
         }
     ]
 
-    df = transform_data(validated_data)
+    df = transform_real_time_data(validated_data)
 
     assert df["current_price"][0] == micro_price
     assert isinstance(df["current_price"][0], Decimal)
 
 
-def test_transform_data_schema_mismatch_failure():
-    """
-    Test to validate that transformation fails if schema is invalid.
-
-    Level: Senior Data Contract Enforcement.
-    """
+def test_transform_real_time_data_schema_mismatch_failure():
+    """Test to validate that transformation fails if schema is invalid."""
     # Dato malformado que paso el extractor (simulado)
     malformed_data = [{"id": "error-coin", "current_price": "NOT_A_DECIMAL"}]
 
     with pytest.raises(Exception):
-        transform_data(malformed_data)
+        transform_real_time_data(malformed_data)

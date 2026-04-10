@@ -2,7 +2,7 @@
 
 import time
 import logging
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger import json
 from datetime import datetime
 import pandas as pd
 from sqlalchemy import create_engine, Table, MetaData
@@ -18,7 +18,7 @@ log_handler = logging.StreamHandler()
 json_format = " ".join(
     [f"%({field})s" for field in Config.LOG_JSON_FIELDS.split(",")]
 )
-formatter = jsonlogger.JsonFormatter(json_format)
+formatter = json.JsonFormatter(json_format)
 log_handler.setFormatter(formatter)
 
 logging.basicConfig(level=Config.LOG_LEVEL, handlers=[log_handler])

@@ -1,6 +1,6 @@
 """Data validation schemas for the Crypto ETL pipeline."""
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List
 from decimal import Decimal
 from datetime import datetime
@@ -12,6 +12,8 @@ class CryptoMarketData(BaseModel):
 
     Asegura precision financiera mediante el uso de Decimal.
     """
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: str
     symbol: str
@@ -33,11 +35,6 @@ class CryptoMarketData(BaseModel):
         if v is None:
             return None
         return Decimal(str(v))
-
-    class Config:
-        """Pydantic configuration for attributes."""
-
-        from_attributes = True
 
 
 class CryptoPriceOutput(CryptoMarketData):
